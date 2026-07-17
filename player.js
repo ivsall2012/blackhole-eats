@@ -108,7 +108,11 @@ const Player = (() => {
     update(dt, world) {
       if (!this.alive) return;
       const { dir, strength } = this.desiredMoveDir();
-      const speed = this.maxSpeed * (strength !== undefined ? strength : 1);
+      // Speed scales gently with size: a fresh tiny hole (r≈0.6) tops out at
+      // ~6 u/s so it stays controllable; ramps to full maxSpeed once you've
+      // grown to ~radius 3+. Keeps early game from darting off at full tilt.
+      const sizeFactor = Utils.clamp(0.35 + (this.radius - 0.6) * 0.24, 0.35, 1);
+      const speed = this.maxSpeed * sizeFactor * (strength !== undefined ? strength : 1);
       const target = dir.clone().multiplyScalar(speed);
       // tighter smoothing → snappier, low-latency follow on touch & keyboard
       this.vel.x = Utils.smooth(this.vel.x, target.x, 0.35, dt);
