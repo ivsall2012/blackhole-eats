@@ -23,6 +23,8 @@ const Player = (() => {
 
       this.input = new THREE.Vector3();
       this.keys = {};
+      // touch state — drag anywhere on screen as a virtual joystick
+      this.touch = { active:false, id:null, sx:0, sy:0, cx:0, cy:0 };
       this._bindInput();
     }
 
@@ -36,17 +38,63 @@ const Player = (() => {
         // use horizontal mouse position for slight camera yaw influence
         this._mx = (e.clientX / window.innerWidth) * 2 - 1;
       });
+
+      // Touch joystick ------------------------------------------------
+      // Treat the whole screen as a floating joystick: the touch start
+      // position is the centre, current touch offset → movement direction.
+      const isTouch = (e) => e.pointerType === 'touch' || e.touches !== undefined
+        || (e.pointerType && e.pointerType !== 'mouse');
+      // Use Pointer Events for unified mouse/touch; only act on touch.
+      window.addEventListener('pointerdown', (e) => {
+        if (e.pointerType !== 'touch') return;
+        const t = this.touch;
+        if (t.active && t.id !== null) return; // one finger only
+        t.active = true; t.id = e.pointerId;
+        t.sx = t.cx = e.clientX; t.sy = t.cy = e.clientY;
+        try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch(_){}
+      });
+      window.addEventListener('pointermove', (e) => {
+        if (!this.touch.active || this.touch.id !== e.pointerId) return;
+        this.touch.cx = e.clientX; this.touch.cy = e.clientY;
+      });
+      const endTouch = (e) => {
+        const t = this.touch;
+        if (t.id !== e.pointerId) return;
+        t.active = false; t.id = null;
+        t.cx = t.sx; t.cy = t.sy;
+      };
+      window.addEventListener('pointerup', endTouch);
+      window.addEventListener('pointercancel', endTouch);
+
+      // Prevent mobile scroll / pinch-zoom while playing
+      const prevent = (e) => { if (this.touch.active) e.preventDefault(); };
+      window.addEventListener('touchmove', prevent, { passive:false });
+      window.addEventListener('gesturestart', (e)=>e.preventDefault());
     }
 
     // movement direction in world (camera-relative)
     desiredMoveDir() {
       let ix=0, iz=0;
+      // keyboard
       if (this.keys['w']||this.keys['arrowup']) iz -= 1;
       if (this.keys['s']||this.keys['arrowdown']) iz += 1;
       if (this.keys['a']||this.keys['arrowleft']) ix -= 1;
       if (this.keys['d']||this.keys['arrowright']) ix += 1;
+      // touch joystick: offset from the touch-start point → movement vector.
+      // Screen-Y is inverted vs world-Z: drag DOWN on screen = move forward (−Z).
+      if (this.touch.active) {
+        const dx = this.touch.cx - this.touch.sx;
+        const dy = this.touch.cy - this.touch.sy;
+        const maxR = 60; // deadzone + saturation radius in px
+        const r = Math.hypot(dx, dy);
+        if (r > 8) {
+          const mag = Math.min((r - 8) / maxR, 1);
+          ix += (dx / r) * mag;
+          iz += (dy / r) * mag;
+        }
+      }
       if (ix===0 && iz===0) return new THREE.Vector3();
-      // camera-relative: forward is from camera toward player (away from camera)
+      // fixed camera looks down -Z, so iX→+X (right), iz→+Z (down/backwards)
       const fwd = new THREE.Vector3(-Math.sin(this.camYaw),0,-Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.cos(this.camYaw),0,-Math.sin(this.camYaw));
       const dir = new THREE.Vector3();
