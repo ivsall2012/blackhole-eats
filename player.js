@@ -73,44 +73,46 @@ const Player = (() => {
     }
 
     // movement direction in world (camera-relative)
+    // Returns { dir: Vector3 (unit), strength: 0..1 } so the touch joystick
+    // can throttle speed proportional to how far you drag.
     desiredMoveDir() {
-      let ix=0, iz=0;
+      let ix=0, iz=0, strength=1;
       // keyboard
       if (this.keys['w']||this.keys['arrowup']) iz -= 1;
       if (this.keys['s']||this.keys['arrowdown']) iz += 1;
       if (this.keys['a']||this.keys['arrowleft']) ix -= 1;
       if (this.keys['d']||this.keys['arrowright']) ix += 1;
-      // touch joystick: offset from the touch-start point → movement vector.
-      // Screen-Y is inverted vs world-Z: drag DOWN on screen = move forward (−Z).
+      // touch joystick
       if (this.touch.active) {
         const dx = this.touch.cx - this.touch.sx;
         const dy = this.touch.cy - this.touch.sy;
-        const maxR = 60; // deadzone + saturation radius in px
+        const maxR = 50; // saturation radius in px
         const r = Math.hypot(dx, dy);
-        if (r > 8) {
-          const mag = Math.min((r - 8) / maxR, 1);
-          ix += (dx / r) * mag;
-          iz += (dy / r) * mag;
-        }
+        if (r > 4) {                 // 4 px deadzone (very responsive)
+          const mag = Math.min(r / maxR, 1);
+          ix = (dx / r) * mag;
+          iz = (dy / r) * mag;
+          strength = 1;             // mag already baked into ix/iz
+        } else { ix=0; iz=0; }
       }
-      if (ix===0 && iz===0) return new THREE.Vector3();
-      // fixed camera looks down -Z, so iX→+X (right), iz→+Z (down/backwards)
+      if (ix===0 && iz===0) return { dir: new THREE.Vector3(), strength: 0 };
       const fwd = new THREE.Vector3(-Math.sin(this.camYaw),0,-Math.cos(this.camYaw));
       const right = new THREE.Vector3(Math.cos(this.camYaw),0,-Math.sin(this.camYaw));
       const dir = new THREE.Vector3();
       dir.addScaledVector(fwd, -iz);
       dir.addScaledVector(right, ix);
-      if (dir.lengthSq()>0) dir.normalize();
-      return dir;
+      // keep magnitude from input (= throttle for touch)
+      return { dir, strength };
     }
 
     update(dt, world) {
       if (!this.alive) return;
-      const dir = this.desiredMoveDir();
-      // accelerate toward dir * maxSpeed
-      const target = dir.clone().multiplyScalar(this.maxSpeed);
-      this.vel.x = Utils.smooth(this.vel.x, target.x, 0.18, dt);
-      this.vel.z = Utils.smooth(this.vel.z, target.z, 0.18, dt);
+      const { dir, strength } = this.desiredMoveDir();
+      const speed = this.maxSpeed * (strength !== undefined ? strength : 1);
+      const target = dir.clone().multiplyScalar(speed);
+      // tighter smoothing → snappier, low-latency follow on touch & keyboard
+      this.vel.x = Utils.smooth(this.vel.x, target.x, 0.35, dt);
+      this.vel.z = Utils.smooth(this.vel.z, target.z, 0.35, dt);
       // move
       this.pos.x += this.vel.x * dt;
       this.pos.z += this.vel.z * dt;
