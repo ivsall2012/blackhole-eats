@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Black Hole City</title>
+<link rel="stylesheet" href="style.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+  <div id="game">
+    <canvas id="canvas"></canvas>
+
+    <!-- HUD -->
+    <div id="hud">
+      <div id="hud-left">
+        <div id="minimap"><canvas id="minimap-canvas" width="150" height="150"></canvas></div>
+        <div class="label">SIZE</div>
+        <div id="size-val" class="value">0.5</div>
+      </div>
+      <div id="hud-center">
+        <div id="timer">03:00</div>
+      </div>
+      <div id="hud-right">
+        <div class="label">LEADERBOARD</div>
+        <ol id="leaderboard"></ol>
+      </div>
+    </div>
+
+    <div id="hint">WASD / Arrows to move</div>
+
+    <!-- Floating texts layer -->
+    <div id="floats"></div>
+    <div id="indicators"></div>
+
+    <!-- Main menu -->
+    <div id="menu" class="overlay">
+      <div class="panel">
+        <h1>Black Hole&nbsp;City</h1>
+        <p>Suck the city dry. Grow. Devour rivals.<br/>You have 3 minutes.</p>
+        <button id="btn-play">PLAY</button>
+        <div class="controls-info">
+          <span><b>WASD</b> / <b>Arrows</b> — move</span>
+          <span>Mouse — rotate camera hint</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- End screen -->
+    <div id="endscreen" class="overlay hidden">
+      <div class="panel">
+        <h2 id="end-title">TIME'S UP</h2>
+        <div class="stats">
+          <div><span>Final Size</span><b id="end-size">0</b></div>
+          <div><span>Total Score</span><b id="end-score">0</b></div>
+          <div><span>Objects Eaten</span><b id="end-eaten">0</b></div>
+          <div><span>Ranking</span><b id="end-rank">--</b></div>
+        </div>
+        <div class="buttons">
+          <button id="btn-again">Play Again</button>
+          <button id="btn-menu">Main Menu</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="utils.js"></script>
+  <script src="audio.js"></script>
+  <script src="effects.js"></script>
+  <script src="objects.js"></script>
+  <script src="blackhole.js"></script>
+  <script src="player.js"></script>
+  <script src="ai.js"></script>
+  <script src="world.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
