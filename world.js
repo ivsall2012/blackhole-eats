@@ -35,13 +35,14 @@ const World = (() => {
         const c = i*step;
         // skip the road that would run straight through the spawn area
         if (Math.abs(c) < step*0.5) continue;
-        // horizontal road
+        // horizontal road (box is already axis-aligned in XZ when Y is its thin height,
+        // so NO rotation is needed — adding one would stand it upright as a wall)
         const rh = new THREE.Mesh(new THREE.BoxGeometry(this.bounds*2-BLOCK, 0.04, ROAD), roadMat);
-        rh.rotation.x = -Math.PI/2; rh.position.set(0, 0.0, c); rh.receiveShadow=true;
+        rh.position.set(0, 0.0, c); rh.receiveShadow=true;
         this.staticRoot.add(rh);
         // vertical road
         const rv = new THREE.Mesh(new THREE.BoxGeometry(ROAD, 0.04, this.bounds*2-BLOCK), roadMat);
-        rv.rotation.x = -Math.PI/2; rv.position.set(c, 0.0, 0); rv.receiveShadow=true;
+        rv.position.set(c, 0.0, 0); rv.receiveShadow=true;
         this.staticRoot.add(rv);
         // center dashed line
         const lh = new THREE.Mesh(new THREE.PlaneGeometry(this.bounds*2-BLOCK, 0.1), lineMat);
