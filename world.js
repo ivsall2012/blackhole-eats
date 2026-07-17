@@ -46,9 +46,9 @@ const World = (() => {
         this.staticRoot.add(rv);
         // center dashed line
         const lh = new THREE.Mesh(new THREE.PlaneGeometry(this.bounds*2-BLOCK, 0.1), lineMat);
-        lh.rotation.x=-Math.PI/2; lh.position.set(0,0.02,c); this.staticRoot.add(lh);
+        lh.rotation.x=-Math.PI/2; lh.position.set(0,0.03,c); this.staticRoot.add(lh);
         const lv = new THREE.Mesh(new THREE.PlaneGeometry(0.1, this.bounds*2-BLOCK), lineMat);
-        lv.rotation.x=-Math.PI/2; lv.position.set(c,0.02,0); this.staticRoot.add(lv);
+        lv.rotation.x=-Math.PI/2; lv.position.set(c,0.03,0); this.staticRoot.add(lv);
       }
     }
 
@@ -69,14 +69,29 @@ const World = (() => {
     }
 
     _buildBlock(cx, cz) {
-      // sidewalk slab
-      const slab = new THREE.Mesh(
-        new THREE.BoxGeometry(BLOCK, 0.18, BLOCK),
-        new THREE.MeshLambertMaterial({ color:0xb6b6ba })
+      const slabMat = new THREE.MeshLambertMaterial({ color:0xb6b6ba });
+      const courtMat = new THREE.MeshLambertMaterial({ color:0x66c066 });
+      // Block = perimeter sidewalk ring + interior grass courtyard. This keeps
+      // the city mostly green (the courtyard inside every block) instead of
+      // being a solid slab of gray that hides the green base grass entirely.
+      const W = 1.2; // sidewalk width
+      const H = 0.18; // sidewalk thickness (top at 0.18)
+      const half = BLOCK / 2;
+      const makeSlab = (x, z, sx, sz) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(sx, H, sz), slabMat);
+        m.position.set(x, H/2, z); m.receiveShadow = true; this.staticRoot.add(m);
+      };
+      // 4 thin slabs as a perimeter ring
+      makeSlab(cx, cz - half + W/2, BLOCK, W); // north
+      makeSlab(cx, cz + half - W/2, BLOCK, W); // south
+      makeSlab(cx - half + W/2, cz, W, BLOCK - 2*W); // west
+      makeSlab(cx + half - W/2, cz, W, BLOCK - 2*W); // east
+      // interior courtyard grass patch
+      const court = new THREE.Mesh(
+        new THREE.BoxGeometry(BLOCK - 2*W, 0.04, BLOCK - 2*W), courtMat
       );
-      slab.position.set(cx, 0.09, cz);
-      slab.receiveShadow = true;
-      this.staticRoot.add(slab);
+      court.position.set(cx, 0.02, cz); court.receiveShadow = true;
+      this.staticRoot.add(court);
 
       // decide block type
       const r = Math.random();
@@ -90,13 +105,6 @@ const World = (() => {
     }
 
     _park(cx, cz) {
-      // grass patch
-      const grass = new THREE.Mesh(
-        new THREE.BoxGeometry(BLOCK-0.6, 0.12, BLOCK-0.6),
-        new THREE.MeshLambertMaterial({ color:0x66c066 })
-      );
-      grass.position.set(cx,0.16,cz); grass.receiveShadow=true;
-      this.staticRoot.add(grass);
       const count = Utils.randInt(2,4);
       for (let i=0;i<count;i++) this._place('tree', cx+Utils.rand(-3,3), cz+Utils.rand(-3,3));
       for (let i=0;i<3;i++) this._place('bench', cx+Utils.rand(-3,3), cz+Utils.rand(-3,3));

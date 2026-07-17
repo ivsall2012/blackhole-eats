@@ -22,29 +22,16 @@ const Player = (() => {
       this.camPos = new THREE.Vector3(0,14,14);
 
       this.input = new THREE.Vector3();
-      this.keys = {};
-      // touch state — drag anywhere on screen as a virtual joystick
+      // keyboard intentionally disabled on PC — movement is mouse-driven.
+      // touch state — drag anywhere on screen as a virtual joystick (mobile)
       this.touch = { active:false, id:null, sx:0, sy:0, cx:0, cy:0 };
+      // mouse state — pointer position on screen (PC aim-to-move control)
+      this.mouse = { active:false, x:0, y:0, overUI:false };
       this._bindInput();
     }
 
     _bindInput() {
-      window.addEventListener('keydown', (e)=>{
-        this.keys[e.key.toLowerCase()] = true;
-        if (['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase())) e.preventDefault();
-      });
-      window.addEventListener('keyup', (e)=>{ this.keys[e.key.toLowerCase()] = false; });
-      window.addEventListener('mousemove', (e)=>{
-        // use horizontal mouse position for slight camera yaw influence
-        this._mx = (e.clientX / window.innerWidth) * 2 - 1;
-      });
-
-      // Touch joystick ------------------------------------------------
-      // Treat the whole screen as a floating joystick: the touch start
-      // position is the centre, current touch offset → movement direction.
-      const isTouch = (e) => e.pointerType === 'touch' || e.touches !== undefined
-        || (e.pointerType && e.pointerType !== 'mouse');
-      // Use Pointer Events for unified mouse/touch; only act on touch.
+      // ---- Touch (mobile) — virtual joystick ----
       window.addEventListener('pointerdown', (e) => {
         if (e.pointerType !== 'touch') return;
         const t = this.touch;
@@ -54,8 +41,16 @@ const Player = (() => {
         try { e.target.setPointerCapture && e.target.setPointerCapture(e.pointerId); } catch(_){}
       });
       window.addEventListener('pointermove', (e) => {
-        if (!this.touch.active || this.touch.id !== e.pointerId) return;
-        this.touch.cx = e.clientX; this.touch.cy = e.clientY;
+        if (e.pointerType === 'touch') {
+          if (!this.touch.active || this.touch.id !== e.pointerId) return;
+          this.touch.cx = e.clientX; this.touch.cy = e.clientY;
+        } else if (e.pointerType === 'mouse' || e.pointerType === '') {
+          // PC mouse aim
+          this.mouse.active = true;
+          this.mouse.x = e.clientX; this.mouse.y = e.clientY;
+          // mark if hovering over an overlay (UI), so we don't steer
+          this.mouse.overUI = !!(e.target && e.target.closest && e.target.closest('.overlay,.panel,button'));
+        }
       });
       const endTouch = (e) => {
         const t = this.touch;
@@ -65,6 +60,7 @@ const Player = (() => {
       };
       window.addEventListener('pointerup', endTouch);
       window.addEventListener('pointercancel', endTouch);
+      window.addEventListener('mouseleave', () => { this.mouse.active = false; });
 
       // Prevent mobile scroll / pinch-zoom while playing
       const prevent = (e) => { if (this.touch.active) e.preventDefault(); };
@@ -77,12 +73,7 @@ const Player = (() => {
     // can throttle speed proportional to how far you drag.
     desiredMoveDir() {
       let ix=0, iz=0, strength=1;
-      // keyboard
-      if (this.keys['w']||this.keys['arrowup']) iz -= 1;
-      if (this.keys['s']||this.keys['arrowdown']) iz += 1;
-      if (this.keys['a']||this.keys['arrowleft']) ix -= 1;
-      if (this.keys['d']||this.keys['arrowright']) ix += 1;
-      // touch joystick
+      // touch joystick (mobile)
       if (this.touch.active) {
         const dx = this.touch.cx - this.touch.sx;
         const dy = this.touch.cy - this.touch.sy;
@@ -94,6 +85,22 @@ const Player = (() => {
           iz = (dy / r) * mag;
           strength = 1;             // mag already baked into ix/iz
         } else { ix=0; iz=0; }
+      } else if (this.mouse.active && !this.mouse.overUI) {
+        // PC: aim-to-move. Project a ray from the camera through the cursor
+        // onto the ground plane (y=0). Steer toward that world point;
+        // strength scales with distance from the player.
+        const w = this._projectMouseToGround();
+        if (w) {
+          const dx = w.x - this.pos.x;
+          const dz = w.z - this.pos.z;
+          const d = Math.hypot(dx, dz);
+          if (d > 0.6) {                // small deadzone right under the hole
+            const sat = 6;              // world-units to reach full strength
+            strength = Math.min(d / sat, 1);
+            ix = dx / d;
+            iz = dz / d;
+          } else { ix=0; iz=0; strength=0; }
+        }
       }
       if (ix===0 && iz===0) return { dir: new THREE.Vector3(), strength: 0 };
       const fwd = new THREE.Vector3(-Math.sin(this.camYaw),0,-Math.cos(this.camYaw));
@@ -128,6 +135,23 @@ const Player = (() => {
       this._updateTransform();
       this._visualUpdate(dt);
       this.updateCamera(dt);
+    }
+
+    // Project the current mouse position onto the ground plane (y=0) and
+    // return the world-space target point, or null if the cursor misses the
+    // ground (e.g., pointing at the sky). Used for PC aim-to-move control.
+    _projectMouseToGround() {
+      if (!this.camera || !this.mouse.active) return null;
+      const ndcX = (this.mouse.x / window.innerWidth) * 2 - 1;
+      const ndcY = -((this.mouse.y / window.innerHeight) * 2 - 1);
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
+      // intersect with y=0 plane: parametrize ray as origin + t*dir
+      const o = ray.ray.origin, d = ray.ray.direction;
+      if (Math.abs(d.y) < 1e-5) return null;
+      const t = -o.y / d.y;
+      if (t < 0) return null; // ground is behind the camera (cursor above horizon)
+      return new THREE.Vector3(o.x + d.x*t, 0, o.z + d.z*t);
     }
 
     _visualUpdate(dt) {
